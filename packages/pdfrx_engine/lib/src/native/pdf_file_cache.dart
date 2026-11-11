@@ -304,6 +304,8 @@ Future<PdfDocument> pdfDocumentFromUri(
   entryFunctions ??= PdfrxEntryFunctions.instance;
   progressCallback?.call(0);
   cache ??= await PdfFileCache.fromUri(uri);
+  // A non-nullable copy so the async closures below can use it after an await.
+  final resolvedCache = cache;
   final httpClientWrapper = _HttpClientWrapper(Pdfrx.createHttpClient ?? () => http.Client());
 
   try {
@@ -364,22 +366,22 @@ Future<PdfDocument> pdfDocumentFromUri(
         final end = position + size;
         var bufferPosition = 0;
         for (var p = position; p < end;) {
-          final blockId = p ~/ cache!.blockSize;
-          final isAvailable = cache.isCached(blockId);
+          final blockId = p ~/ resolvedCache.blockSize;
+          final isAvailable = resolvedCache.isCached(blockId);
           if (!isAvailable) {
             await _downloadBlock(
               httpClientWrapper,
               uri,
-              cache,
+              resolvedCache,
               progressCallback,
               blockId,
               headers: headers,
               timeout: timeout,
             );
           }
-          final readEnd = min(p + size, (blockId + 1) * cache.blockSize);
+          final readEnd = min(p + size, (blockId + 1) * resolvedCache.blockSize);
           final sizeToRead = readEnd - p;
-          await cache.read(buffer, bufferPosition, p, sizeToRead);
+          await resolvedCache.read(buffer, bufferPosition, p, sizeToRead);
           p += sizeToRead;
           bufferPosition += sizeToRead;
           size -= sizeToRead;
@@ -392,7 +394,7 @@ Future<PdfDocument> pdfDocumentFromUri(
       fileSize: cache.fileSize,
       sourceName: uri.toString(),
       onDispose: () {
-        cache!.close();
+        resolvedCache.close();
         httpClientWrapper.reset();
       },
     );
